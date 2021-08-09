@@ -24,7 +24,7 @@ except ImportError:
     c_concurrent = None
 
 
-def ordered_storage(config, name=None):
+def ordered_storage(config, name=None, ttl=None):
     '''Return ordered storage system based on the specified config.
 
     The canonical example of such a storage container is
@@ -52,17 +52,18 @@ def ordered_storage(config, name=None):
             For dict-type containers, this is ignored. For Redis containers,
             this name is used to prefix keys pertaining to this storage
             container within the database.
+        ttl (int, optional): Timeout in seconds
     '''
     tp = config['type']
     if tp == 'dict':
         return DictListStorage(config)
     if tp == 'redis':
-        return RedisListStorage(config, name=name)
+        return RedisListStorage(config, name=name, ttl=ttl)
     if tp == 'cassandra':
         return CassandraListStorage(config, name=name)
 
 
-def unordered_storage(config, name=None):
+def unordered_storage(config, name=None, ttl=None):
     '''Return an unordered storage system based on the specified config.
 
     The canonical example of such a storage container is
@@ -89,12 +90,13 @@ def unordered_storage(config, name=None):
             For dict-type containers, this is ignored. For Redis containers,
             this name is used to prefix keys pertaining to this storage
             container within the database.
+        ttl (int, optional): Timeout in seconds
     '''
     tp = config['type']
     if tp == 'dict':
         return DictSetStorage(config)
     if tp == 'redis':
-        return RedisSetStorage(config, name=name)
+        return RedisSetStorage(config, name=name, ttl=ttl)
     if tp == 'cassandra':
         return CassandraSetStorage(config, name=name)
 
@@ -861,7 +863,7 @@ if redis is not None:
                 If None, a random name will be chosen.
         '''
 
-        def __init__(self, config, name=None):
+        def __init__(self, config, name=None, ttl=None):
             self.config = config
             self._buffer_size = 50000
             redis_param = self._parse_config(self.config['redis'])
@@ -874,6 +876,7 @@ if redis is not None:
             if name is None:
                 name = _random_name(11)
             self._name = name
+            self.ttl = ttl
 
         @property
         def buffer_size(self):
@@ -886,6 +889,11 @@ if redis is not None:
 
         def redis_key(self, key):
             return self._name + key
+
+        def expire(self, r, keys):
+            # todo: check return type in unit test
+            for key in keys:
+                r.expire(key, self.ttl)
 
         def _parse_config(self, config):
             cfg = {}
@@ -917,8 +925,8 @@ if redis is not None:
 
 
     class RedisListStorage(OrderedStorage, RedisStorage):
-        def __init__(self, config, name=None):
-            RedisStorage.__init__(self, config, name=name)
+        def __init__(self, config, name=None, ttl=None):
+            RedisStorage.__init__(self, config, name=name, ttl=ttl)
 
         def keys(self):
             return self._redis.hkeys(self._name)
@@ -971,6 +979,9 @@ if redis is not None:
             r.hset(self._name, key, redis_key)
             r.rpush(redis_key, *values)
 
+            if self.ttl:
+                self.expire(r, [redis_key, key, self._name])
+
         def size(self):
             return self._redis.hlen(self._name)
 
@@ -998,8 +1009,8 @@ if redis is not None:
 
 
     class RedisSetStorage(UnorderedStorage, RedisListStorage):
-        def __init__(self, config, name=None):
-            RedisListStorage.__init__(self, config, name=name)
+        def __init__(self, config, name=None, ttl=None):
+            RedisListStorage.__init__(self, config, name=name, ttl=ttl)
 
         @staticmethod
         def _get_items(r, k):
@@ -1015,6 +1026,9 @@ if redis is not None:
             redis_key = self.redis_key(key)
             r.hset(self._name, key, redis_key)
             r.sadd(redis_key, *values)
+
+            if self.ttl:
+                self.expire(r, [redis_key, key, self._name])
 
         @staticmethod
         def _get_len(r, k):
