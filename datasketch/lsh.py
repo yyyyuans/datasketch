@@ -96,7 +96,7 @@ class MinHashLSH(object):
     '''
 
     def __init__(self, threshold=0.9, num_perm=128, weights=(0.5, 0.5),
-                 params=None, storage_config=None, prepickle=None, hashfunc=None, ttl=None):
+                 params=None, storage_config=None, prepickle=None, hashfunc=None):
         storage_config = {'type': 'dict'} if not storage_config else storage_config
         self._buffer_size = 50000
         if threshold > 1.0 or threshold < 0.0:
@@ -130,10 +130,10 @@ class MinHashLSH(object):
 
         basename = storage_config.get('basename', _random_name(11))
         self.hashtables = [
-            unordered_storage(storage_config, name=b''.join([basename, b'_bucket_', struct.pack('>H', i)]), ttl=ttl)
+            unordered_storage(storage_config, name=b''.join([basename, b'_bucket_', struct.pack('>H', i)]))
             for i in range(self.b)]
         self.hashranges = [(i*self.r, (i+1)*self.r) for i in range(self.b)]
-        self.keys = ordered_storage(storage_config, name=b''.join([basename, b'_keys']), ttl=ttl)
+        self.keys = ordered_storage(storage_config, name=b''.join([basename, b'_keys']))
 
     @property
     def buffer_size(self):

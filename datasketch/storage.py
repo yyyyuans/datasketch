@@ -24,7 +24,7 @@ except ImportError:
     c_concurrent = None
 
 
-def ordered_storage(config, name=None, ttl=None):
+def ordered_storage(config, name=None):
     '''Return ordered storage system based on the specified config.
 
     The canonical example of such a storage container is
@@ -52,18 +52,17 @@ def ordered_storage(config, name=None, ttl=None):
             For dict-type containers, this is ignored. For Redis containers,
             this name is used to prefix keys pertaining to this storage
             container within the database.
-        ttl (int, optional): Timeout in seconds
     '''
     tp = config['type']
     if tp == 'dict':
         return DictListStorage(config)
     if tp == 'redis':
-        return RedisListStorage(config, name=name, ttl=ttl)
+        return RedisListStorage(config, name=name)
     if tp == 'cassandra':
         return CassandraListStorage(config, name=name)
 
 
-def unordered_storage(config, name=None, ttl=None):
+def unordered_storage(config, name=None):
     '''Return an unordered storage system based on the specified config.
 
     The canonical example of such a storage container is
@@ -90,13 +89,12 @@ def unordered_storage(config, name=None, ttl=None):
             For dict-type containers, this is ignored. For Redis containers,
             this name is used to prefix keys pertaining to this storage
             container within the database.
-        ttl (int, optional): Timeout in seconds
     '''
     tp = config['type']
     if tp == 'dict':
         return DictSetStorage(config)
     if tp == 'redis':
-        return RedisSetStorage(config, name=name, ttl=ttl)
+        return RedisSetStorage(config, name=name)
     if tp == 'cassandra':
         return CassandraSetStorage(config, name=name)
 
@@ -863,7 +861,7 @@ if redis is not None:
                 If None, a random name will be chosen.
         '''
 
-        def __init__(self, config, name=None, ttl=None):
+        def __init__(self, config, name=None):
             self.config = config
             self._buffer_size = 50000
             redis_param = self._parse_config(self.config['redis'])
@@ -876,7 +874,7 @@ if redis is not None:
             if name is None:
                 name = _random_name(11)
             self._name = name
-            self.ttl = ttl
+            self.ttl = self.config.get("ttl")
 
         @property
         def buffer_size(self):
@@ -925,8 +923,8 @@ if redis is not None:
 
 
     class RedisListStorage(OrderedStorage, RedisStorage):
-        def __init__(self, config, name=None, ttl=None):
-            RedisStorage.__init__(self, config, name=name, ttl=ttl)
+        def __init__(self, config, name=None):
+            RedisStorage.__init__(self, config, name=name)
 
         def keys(self):
             return self._redis.hkeys(self._name)
@@ -1009,8 +1007,8 @@ if redis is not None:
 
 
     class RedisSetStorage(UnorderedStorage, RedisListStorage):
-        def __init__(self, config, name=None, ttl=None):
-            RedisListStorage.__init__(self, config, name=name, ttl=ttl)
+        def __init__(self, config, name=None):
+            RedisListStorage.__init__(self, config, name=name)
 
         @staticmethod
         def _get_items(r, k):
